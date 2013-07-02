@@ -160,8 +160,8 @@ public class MainForm extends JFrame {
                             @Override
                             public void run() {
                                 try {
-                                    logger.info("fillRows " + choosedTable + " with encoding " + selectedEncoding);
-                                    databaseWorker.fillRows(choosedTable, finalChoosedListModel, selectedEncoding);
+                                    logger.info("fillRowsToListModel " + choosedTable + " with encoding " + selectedEncoding);
+                                    databaseWorker.fillRowsToListModel(choosedTable, finalChoosedListModel, selectedEncoding);
                                     logger.info("done " + finalChoosedListModel.toString());
                                 } catch (IOException e1) {
                                     logger.error(e1);
@@ -204,7 +204,7 @@ public class MainForm extends JFrame {
                     return;
                 byte[] bytes = selectedFamily;
                 try {
-                    selectedFamily = familiesJList.getSelectedValue().getBytes(selectedEncoding);
+                    selectedFamily = familiesJList.getSelectedValue().getBytes();
                 } catch (Exception e1) {
                     selectedFamily = bytes;
                 }
@@ -268,7 +268,7 @@ public class MainForm extends JFrame {
                 } catch (IOException ignored) {
                 }
 
-                tablesJList.setSelectedIndex(0);
+                tablesJList.setSelectedValue(choosedTable, true);
             }
         };
 
@@ -344,17 +344,20 @@ public class MainForm extends JFrame {
     private void loadDataToJTable() {
         Row choosedRowData = null;
         try {
+            System.out.println("selectedRow: " +  selectedRow + "\nselectedFamily " + selectedFamily + "\nselectedEncoding " + selectedEncoding);
             choosedRowData = databaseWorker.getRow(tablesJList.getSelectedValue(), selectedRow, selectedFamily, selectedEncoding);
         } catch (IOException e) {
             e.printStackTrace();
             return;
         }
-        if (choosedRowData.getData().length == 0) {
-            throw new RuntimeException("No data in this row");
-        }
 
         tableData.setRowCount(0);
         tableData.setColumnCount(0);
+
+        if (choosedRowData.getData().length == 0) {
+            logger.info("No data in this row");
+            return;
+        }
 
         String[] tmpColumnsLink = choosedRowData.getColumns();
 

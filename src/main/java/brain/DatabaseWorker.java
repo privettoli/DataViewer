@@ -90,6 +90,9 @@ public class DatabaseWorker {
 
     public Row getRow(String tableName, byte[] rowName, byte[] familyName, String encoding) throws IOException {
         String familyNameAsString = Bytes.toString(familyName);
+        Map<String, Map<byte[], Row>> table = cache.get(tableName);
+        if (!table.containsKey(familyNameAsString))
+            table.put(familyNameAsString, new HashMap<byte[], Row>());
         Row row = cache.get(tableName).get(familyNameAsString).get(rowName);
         if (row != null && row.getData() != null) {
             return row;
@@ -118,7 +121,7 @@ public class DatabaseWorker {
             data.add(BytesToStringConverter.toString(rowData, encoding));
         }
         row = new Row(columns.toArray(new String[columns.size()]), data.toArray(new String[data.size()]), Bytes.toString(familyName));
-        cache.get(tableName).get(familyNameAsString).put(familyName, row);
+        table.get(familyNameAsString).put(familyName, row);
         return row;
     }
 
@@ -127,7 +130,9 @@ public class DatabaseWorker {
      */
     public String[] getTableNames() throws IOException {
         if (cache.size() != 0) {
-            return cache.keySet().toArray(new String[cache.keySet().size()]);
+            String[] tableNames = cache.keySet().toArray(new String[cache.keySet().size()]);
+            System.out.println("getTableNames() {\n\t" + Arrays.toString(tableNames) + "\n}");
+            return tableNames;
         }
         HBaseAdmin hBaseAdmin = new HBaseAdmin(configuration);
         HTableDescriptor[] hTableDescriptors = hBaseAdmin.listTables();
@@ -141,7 +146,7 @@ public class DatabaseWorker {
         return names;
     }
 
-    public void fillRows(String tableName, DefaultListModel<String> listModel, String encoding) throws IOException {
+    public void fillRowsToListModel(String tableName, DefaultListModel<String> listModel, String encoding) throws IOException {
         HTable table = new HTable(configuration, tableName);
         Scan scan = new Scan();
         scan.setMaxVersions();
