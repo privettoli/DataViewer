@@ -9,7 +9,6 @@ import com.intellij.uiDesigner.core.GridLayoutManager;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
@@ -21,7 +20,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.IOException;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.List;
 
@@ -45,6 +43,7 @@ public class MainForm extends JFrame {
     private JButton refreshButton;
     private JTextField searchRowTextField;
     private JProgressBar progressBar;
+    private JProgressBar progressBarForRows;
     private DatabaseWorker databaseWorker;
     private ResourceBundle resourceBundle = ResourceBundle.getBundle("MainFormResources");
     private Logger logger = Logger.getLogger(this.getClass());
@@ -63,14 +62,15 @@ public class MainForm extends JFrame {
 
     // Entry-point of this window
     public void start() {
-        try {
-            Properties log4jProps = new Properties();
-            log4jProps.load(getClass().getClassLoader().getResourceAsStream("log4j.properties"));
-            PropertyConfigurator.configure(log4jProps);
-        } catch (IOException e) {
-            BasicConfigurator.configure();
-            logger.error(e);
-        }
+        BasicConfigurator.configure();
+//        try {
+//            Properties log4jProps = new Properties();
+//            log4jProps.load(getClass().getClassLoader().getResourceAsStream("log4j.properties"));
+//            PropertyConfigurator.configure(log4jProps);
+//        } catch (IOException e) {
+//            BasicConfigurator.configure();
+//            logger.error(e);
+//        }
         databaseWorker = new DatabaseWorker();
         databaseWorker.loadProperties();
         logger.info("DatabaseWorker created");
@@ -144,9 +144,7 @@ public class MainForm extends JFrame {
 
                 tablesJList.setEnabled(false);
                 try {
-                    logger.info("getFamilies(" + choosedTable + ')');
                     final String[] familiesNames = databaseWorker.getFamilies(choosedTable);
-                    logger.info("result: " + Arrays.toString(familiesNames));
                     familiesJList.setListData(familiesNames);
 
                     DefaultListModel<String> choosedListModel = listModels.get(choosedTable);
@@ -160,9 +158,7 @@ public class MainForm extends JFrame {
                             @Override
                             public void run() {
                                 try {
-                                    logger.info("fillRowsToListModel " + choosedTable + " with encoding " + selectedEncoding);
-                                    databaseWorker.fillRowsToListModel(choosedTable, finalChoosedListModel, selectedEncoding);
-                                    logger.info("done " + finalChoosedListModel.toString());
+                                    databaseWorker.fillRowsToListModel(choosedTable, finalChoosedListModel, selectedEncoding, progressBar);
                                 } catch (IOException e1) {
                                     logger.error(e1);
                                 }
@@ -235,7 +231,6 @@ public class MainForm extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 final String lastEncoding = selectedEncoding;
-                logger.info("lastEn " + lastEncoding);
                 if (e.getSource() == utf8RadioButton)
                     selectedEncoding = Constants.UTF8;
                 else if (e.getSource() == hexRadioButton)
@@ -244,12 +239,14 @@ public class MainForm extends JFrame {
                     selectedEncoding = Constants.CP1251;
                 else if (e.getSource() == asciiRadioButton)
                     selectedEncoding = Constants.AHCII;
-                logger.info("newEn " + selectedEncoding);
                 for (String tableName : listModels.keySet()) {
                     final DefaultListModel<String> rows = listModels.get(tableName);
                     new Thread(new Runnable() {
                         @Override
                         public void run() {
+                            progressBarForRows.setVisible(true);
+                            progressBarForRows.setIndeterminate(true);
+                            progressBarForRows.setMaximum(rows.getSize());
                             for (int i = 0; i < rows.getSize(); i++) {
                                 try {
                                     byte[] row = lastEncoding.equals(Constants.HEX) ? BytesToStringConverter.toBytes(rows.getElementAt(i)) : rows.getElementAt(i).getBytes(lastEncoding);
@@ -257,7 +254,10 @@ public class MainForm extends JFrame {
                                 } catch (Exception e1) {
                                     logger.error(e1);
                                 }
+                                progressBarForRows.setValue(i);
                             }
+                            progressBarForRows.setIndeterminate(false);
+                            progressBarForRows.setVisible(false);
                         }
                     }).start();
                 }
@@ -313,20 +313,34 @@ public class MainForm extends JFrame {
             public void keyTyped(KeyEvent e) {
                 if (rowsJList.getModel() == null && rowsJList.getModel().getSize() == 0)
                     return;
+                final DefaultListModel<String> rowsModel = listModels.get(choosedTable);
+                if (searchRowTextField.getText().isEmpty())
+                    rowsJList.setModel(rowsModel);
                 rowsJList.setEnabled(false);
-                rowsJList.setSelectedIndex(-1);
-                goButton.setEnabled(false);
-                try {
-                    List<String> newRowsNames = new ArrayList<>(rowsJList.getModel().getSize());
-                    for (int i = 0; i < rowsJList.getModel().getSize(); i++) {
-                        String elementAt = rowsJList.getModel().getElementAt(i);
-                        if (elementAt.contains(searchRowTextField.getText()))
-                            newRowsNames.add(elementAt);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        rowsJList.setSelectedIndex(-1);
+                        goButton.setEnabled(false);
+                        try {
+                            List<String> newRowsNames = new ArrayList<>(rowsModel.getSize());
+                            progressBarForRows.setVisible(true);
+                            progressBarForRows.setMaximum(rowsModel.getSize() + 10);
+                            for (int i = 0; i < rowsModel.getSize(); i++) {
+                                progressBarForRows.setValue(i);
+                                String elementAt = rowsModel.getElementAt(i);
+                                if (elementAt.contains(searchRowTextField.getText()))
+                                    newRowsNames.add(elementAt);
+                            }
+                            progressBarForRows.setValue(rowsModel.getSize() + 3);
+                            rowsJList.setListData(newRowsNames.toArray(new String[newRowsNames.size()]));
+                            progressBarForRows.setValue(rowsModel.getSize() + 9);
+                            progressBarForRows.setVisible(false);
+                        } catch (ArrayIndexOutOfBoundsException ignored) {
+                        }
+                        rowsJList.setEnabled(true);
                     }
-                    rowsJList.setListData(newRowsNames.toArray(new String[newRowsNames.size()]));
-                } catch (ArrayIndexOutOfBoundsException ignored) {
-                }
-                rowsJList.setEnabled(true);
+                }).start();
             }
 
             @Override
@@ -344,7 +358,6 @@ public class MainForm extends JFrame {
     private void loadDataToJTable() {
         Row choosedRowData = null;
         try {
-            System.out.println("selectedRow: " +  selectedRow + "\nselectedFamily " + selectedFamily + "\nselectedEncoding " + selectedEncoding);
             choosedRowData = databaseWorker.getRow(tablesJList.getSelectedValue(), selectedRow, selectedFamily, selectedEncoding);
         } catch (IOException e) {
             e.printStackTrace();
@@ -365,52 +378,54 @@ public class MainForm extends JFrame {
             if (aTmpColumnsLink != null)
                 tableData.addColumn(aTmpColumnsLink);
         }
-
         tableData.addRow(choosedRowData.getData());
     }
 
     public void loadTables() throws IOException {
-        try {
-            tablesNames = databaseWorker.getTableNames();
-            if (!tablesJList.isEnabled()) {
-                tablesJList.setEnabled(true);
-                familiesJList.setEnabled(true);
-                rowsJList.setEnabled(true);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    tablesNames = databaseWorker.getTableNames();
+                    if (!tablesJList.isEnabled()) {
+                        tablesJList.setEnabled(true);
+                        familiesJList.setEnabled(true);
+                        rowsJList.setEnabled(true);
 
-                utf8RadioButton.setEnabled(true);
-                asciiRadioButton.setEnabled(true);
-                hexRadioButton.setEnabled(true);
-                windows1251RadioButton.setEnabled(true);
-            }
-        } catch (UnknownHostException exception) {
-            logger.error(exception);
-            JOptionPane.showMessageDialog(thisFrame,
-                    exception.getLocalizedMessage(),
-                    exception.getClass().getName(),
-                    JOptionPane.ERROR_MESSAGE);
-        } catch (IOException e) {
-            logger.error(e);
-        }
-
-        if (tablesNames != null && tablesNames.length > 0)
-            try {
-                tablesJList.setListData(tablesNames);
-                if (choosedTable == null) {
-                    choosedTable = tablesNames[0];
+                        utf8RadioButton.setEnabled(true);
+                        asciiRadioButton.setEnabled(true);
+                        hexRadioButton.setEnabled(true);
+                        windows1251RadioButton.setEnabled(true);
+                    }
+                } catch (IOException exception) {
+                    logger.error(exception);
+                    JOptionPane.showMessageDialog(thisFrame,
+                            exception.getLocalizedMessage(),
+                            exception.getClass().getName(),
+                            JOptionPane.ERROR_MESSAGE);
                 }
-                tablesJList.setSelectedValue(choosedTable, true);
-            } catch (ArrayIndexOutOfBoundsException e) {
-                logger.error(e);
+
+                if (tablesNames != null && tablesNames.length > 0)
+                    try {
+                        tablesJList.setListData(tablesNames);
+                        if (choosedTable == null) {
+                            choosedTable = tablesNames[0];
+                        }
+                        tablesJList.setSelectedValue(choosedTable, true);
+                    } catch (ArrayIndexOutOfBoundsException e) {
+                        logger.error(e);
+                    }
+                else {
+                    tablesJList.setEnabled(false);
+                    familiesJList.setEnabled(false);
+                    rowsJList.setEnabled(false);
+                    utf8RadioButton.setEnabled(false);
+                    asciiRadioButton.setEnabled(false);
+                    hexRadioButton.setEnabled(false);
+                    windows1251RadioButton.setEnabled(false);
+                }
             }
-        else {
-            tablesJList.setEnabled(false);
-            familiesJList.setEnabled(false);
-            rowsJList.setEnabled(false);
-            utf8RadioButton.setEnabled(false);
-            asciiRadioButton.setEnabled(false);
-            hexRadioButton.setEnabled(false);
-            windows1251RadioButton.setEnabled(false);
-        }
+        }).start();
     }
 
     {
@@ -471,7 +486,7 @@ public class MainForm extends JFrame {
         jTable.setEnabled(true);
         scrollPane3.setViewportView(jTable);
         final JPanel panel2 = new JPanel();
-        panel2.setLayout(new GridLayoutManager(4, 3, new Insets(0, 0, 0, 0), -1, -1));
+        panel2.setLayout(new GridLayoutManager(5, 3, new Insets(0, 0, 0, 0), -1, -1));
         mainPanel.add(panel2, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         final JScrollPane scrollPane4 = new JScrollPane();
         scrollPane4.setHorizontalScrollBarPolicy(30);
@@ -485,21 +500,24 @@ public class MainForm extends JFrame {
         scrollPane4.setViewportView(rowsJList);
         asciiRadioButton = new JRadioButton();
         asciiRadioButton.setText("ASCII");
-        panel2.add(asciiRadioButton, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel2.add(asciiRadioButton, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         windows1251RadioButton = new JRadioButton();
         windows1251RadioButton.setText("WINDOWS-1251");
-        panel2.add(windows1251RadioButton, new GridConstraints(3, 1, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel2.add(windows1251RadioButton, new GridConstraints(4, 1, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         utf8RadioButton = new JRadioButton();
         utf8RadioButton.setText("UTF-8");
-        panel2.add(utf8RadioButton, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel2.add(utf8RadioButton, new GridConstraints(3, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         hexRadioButton = new JRadioButton();
         hexRadioButton.setText("HEX");
-        panel2.add(hexRadioButton, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel2.add(hexRadioButton, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         refreshButton = new JButton();
         refreshButton.setText("");
-        panel2.add(refreshButton, new GridConstraints(2, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel2.add(refreshButton, new GridConstraints(3, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         searchRowTextField = new JTextField();
         panel2.add(searchRowTextField, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        progressBarForRows = new JProgressBar();
+        progressBarForRows.setVisible(false);
+        panel2.add(progressBarForRows, new GridConstraints(2, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         progressBar = new JProgressBar();
         progressBar.setVisible(false);
         mainPanel.add(progressBar, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));

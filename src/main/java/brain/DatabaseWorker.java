@@ -146,16 +146,22 @@ public class DatabaseWorker {
         return names;
     }
 
-    public void fillRowsToListModel(String tableName, DefaultListModel<String> listModel, String encoding) throws IOException {
+    public void fillRowsToListModel(String tableName, DefaultListModel<String> listModel, String encoding, JProgressBar progressBar) throws IOException {
+        progressBar.setVisible(true);
+        progressBar.setValue(0);
+        progressBar.setMaximum(2);
         HTable table = new HTable(configuration, tableName);
         Scan scan = new Scan();
         scan.setMaxVersions();
         scan.setFilter(new FirstKeyOnlyFilter());
         ResultScanner scanner = table.getScanner(scan);
-
         for (Result rr : scanner) {
             listModel.addElement(BytesToStringConverter.toString(rr.getRow(), encoding));
+
+            progressBar.setValue(progressBar.getMaximum());
+            progressBar.setMaximum(progressBar.getMaximum() + 1);
         }
+        progressBar.setVisible(false);
     }
 
     /**
