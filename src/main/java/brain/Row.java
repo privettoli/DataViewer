@@ -1,5 +1,7 @@
 package brain;
 
+import java.util.Arrays;
+
 /**
  * Краткое описание класса:
  * Кодер: anatoliy
@@ -28,5 +30,13 @@ public class Row {
 
     public String getFamily() {
         return family;
+    }
+
+    @Override
+    public String toString() {
+        return "Row{" +
+                "columns=" + Arrays.toString(columns) +
+                ", data=" + Arrays.toString(data) +
+                '}';
     }
 }

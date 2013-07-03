@@ -37,6 +37,10 @@ public class DatabaseWorker {
      */
     private Map<String, Map<String, Map<byte[], Row>>> cache = new ConcurrentHashMap<>();
 
+    public String getSettingValue(String key) {
+        return configuration.get(key);
+    }
+
     public void loadProperties() {
         logger.trace("Creating DatabaseWorker");
         try {
@@ -60,21 +64,22 @@ public class DatabaseWorker {
         preferences.put(key, value);
     }
 
-    public String getHbaseZookeeperQuorum() {
-        return configuration.get("hbase.zookeeper.quorum");
-    }
-
     public Row getRow(String tableName, byte[] rowName, byte[] familyName, String encoding) throws IOException {
         String familyNameAsString = Bytes.toString(familyName);
+
         Map<String, Map<byte[], Row>> table = cache.get(tableName);
+
         if (!table.containsKey(familyNameAsString))
             table.put(familyNameAsString, new HashMap<byte[], Row>());
+
         Row row = cache.get(tableName).get(familyNameAsString).get(rowName);
         if (row != null && row.getData() != null) {
             return row;
         }
+
         List<String> columns = new LinkedList<>();
         List<String> data = new LinkedList<>();
+
         HTable hTable = new HTable(configuration, tableName);
         Scan scan = new Scan();
 
@@ -91,6 +96,7 @@ public class DatabaseWorker {
         ResultScanner scanner = hTable.getScanner(scan);
         for (Result result : scanner) {
             byte[] qualifier = result.getFamilyMap(familyName).firstKey();
+            System.out.println(Bytes.toString(qualifier));
             byte[] rowData = result.getColumnLatest(familyName, qualifier).getValue();
             String columnName = Bytes.toString(qualifier);
             columns.add(columnName);

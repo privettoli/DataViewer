@@ -26,7 +26,11 @@ import java.util.List;
 
 public class MainForm extends JFrame {
     private final static String OS = System.getProperty("os.name").toLowerCase();
+    private static final ResourceBundle resourceBundle = ResourceBundle.getBundle("MainFormResources");
+    private final static String[] settings = {"hbase.zookeeper.quorum", "hbase.rootdir", "hbase.cluster.distributed", "hbase.zookeeper.property.dataDir"};
     private final MainForm thisFrame = this;
+    private final Logger logger = Logger.getLogger(this.getClass());
+    private final JMenuBar jMenuBar = new JMenuBar();
     private JPanel mainPanel,
             choosePanel,
             viewPanel;
@@ -46,14 +50,9 @@ public class MainForm extends JFrame {
     private JProgressBar progressBar;
     private JProgressBar progressBarForRows;
     private DatabaseWorker databaseWorker;
-    private final ResourceBundle resourceBundle = ResourceBundle.getBundle("MainFormResources");
-    private final Logger logger = Logger.getLogger(this.getClass());
     private DefaultTableModel tableData;
     private Map<String, DefaultListModel<String>> listModels = new HashMap<>();
-    private final JMenuBar jMenuBar = new JMenuBar();
     private JMenu jMenuSettings = new JMenu(resourceBundle.getString("settings"));
-    private JMenuItem
-            jMenuItemChangeHbaseSettings = new JMenuItem("Изменить адрес hbase.zookeeper.quorum");
     private ChangeSettings changeSettingsForm;
     private String[] tablesNames = null;
     private String choosedTable;
@@ -101,8 +100,10 @@ public class MainForm extends JFrame {
         buttonGroup.add(utf8RadioButton);
         buttonGroup.add(windows1251RadioButton);
         utf8RadioButton.setSelected(true);
-
-        jMenuSettings.add(jMenuItemChangeHbaseSettings);
+        String changeWord = resourceBundle.getString("changeWord");
+        for (String setting : settings) {
+            jMenuSettings.add(new JMenuItem(changeWord + ' ' + setting));
+        }
         jMenuBar.add(jMenuSettings);
         setJMenuBar(jMenuBar);
 
@@ -276,21 +277,26 @@ public class MainForm extends JFrame {
         asciiRadioButton.addActionListener(encodingWasChangedListener);
         utf8RadioButton.addActionListener(encodingWasChangedListener);
         windows1251RadioButton.addActionListener(encodingWasChangedListener);
-
-        jMenuItemChangeHbaseSettings.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (changeSettingsForm == null) {
-                    changeSettingsForm = new ChangeSettings("hbase.zookeeper.quorum");
-                    changeSettingsForm.setTitle(resourceBundle.getString("settings"));
-                    changeSettingsForm.setDatabaseWorker(databaseWorker);
-                    changeSettingsForm.setMainForm(thisFrame);
+        for (int i = 0; i < jMenuBar.getMenu(0).getItemCount(); i++) {
+            final int finalI = i;
+            jMenuBar.getMenu(0).getItem(i).addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    if (changeSettingsForm == null) {
+                        changeSettingsForm = new ChangeSettings(databaseWorker);
+                        changeSettingsForm.setTitle(resourceBundle.getString("settings"));
+                        changeSettingsForm.setMainForm(thisFrame);
+                        changeSettingsForm.pack();
+                        changeSettingsForm.setLocationRelativeTo(null);
+                    }
+                    changeSettingsForm.setSettingKey(settings[finalI]);
+                    changeSettingsForm.setSettingValue(databaseWorker.getSettingValue(settings[finalI]));
                     changeSettingsForm.pack();
-                    changeSettingsForm.setLocationRelativeTo(null);
+                    changeSettingsForm.setVisible(true);
                 }
-                changeSettingsForm.setVisible(true);
-            }
-        });
+            });
+        }
+
 
         refreshButton.addActionListener(new ActionListener() {
             @Override
@@ -357,7 +363,7 @@ public class MainForm extends JFrame {
     }
 
     private void loadDataToJTable() {
-        Row choosedRowData = null;
+        Row choosedRowData;
         try {
             choosedRowData = databaseWorker.getRow(tablesJList.getSelectedValue(), selectedRow, selectedFamily, selectedEncoding);
         } catch (IOException e) {
