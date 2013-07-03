@@ -18,7 +18,7 @@ public class BytesToStringConverter {
         else return toHex(bytes);
     }
 
-    public static String toHex(byte[] bytes) {
+    private static String toHex(byte[] bytes) {
         char[] hexChars = new char[bytes.length * 2];
         int v;
         for (int i = 0; i < bytes.length; i++) {

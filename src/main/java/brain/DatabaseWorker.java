@@ -25,9 +25,9 @@ import java.util.prefs.Preferences;
  * Начал - закончи
  */
 public class DatabaseWorker {
-    private Configuration configuration = HBaseConfiguration.create();
-    private Logger logger = Logger.getLogger(DatabaseWorker.class);
-    private Preferences preferences = Preferences.userNodeForPackage(DatabaseWorker.class);
+    private final Configuration configuration = HBaseConfiguration.create();
+    private final Logger logger = Logger.getLogger(DatabaseWorker.class);
+    private final Preferences preferences = Preferences.userNodeForPackage(DatabaseWorker.class);
     /**
      * String - имя таблицы<br>
      * Карта {<br>
@@ -36,10 +36,6 @@ public class DatabaseWorker {
      * }
      */
     private Map<String, Map<String, Map<byte[], Row>>> cache = new ConcurrentHashMap<>();
-
-    public Configuration getConfiguration() {
-        return configuration;
-    }
 
     public void loadProperties() {
         logger.trace("Creating DatabaseWorker");
@@ -52,40 +48,20 @@ public class DatabaseWorker {
         }
     }
 
-    public String getHbaseMaster() {
-        return configuration.get("hbase.master");
-    }
-
-    public void setHbaseMaster(String hbaseMaster) {
-        saveSetting("hbase.master", hbaseMaster);
-    }
-
-    public String getHbaseRootdir() {
-        return configuration.get("hbase.rootdir");
-    }
-
-    public void setHbaseRootDir(String hbaseRootdir) {
-        saveSetting("hbase.rootdir", hbaseRootdir);
-        preferences.put("hbase.rootdir", hbaseRootdir);
-    }
-
     /**
      * Сохраняет настройку сразу в preference и в configuration
      *
      * @param key   ключ
      * @param value значение
      */
-    private void saveSetting(String key, String value) {
+    public void setSetting(String key, String value) {
         configuration.set(key, value);
+        cache = new HashMap<>();
         preferences.put(key, value);
     }
 
     public String getHbaseZookeeperQuorum() {
         return configuration.get("hbase.zookeeper.quorum");
-    }
-
-    public void setHbaseZookeeperQuorum(String hbaseZookeeperQuorum) {
-        saveSetting("hbase.zookeeper.quorum", hbaseZookeeperQuorum);
     }
 
     public Row getRow(String tableName, byte[] rowName, byte[] familyName, String encoding) throws IOException {
@@ -130,9 +106,7 @@ public class DatabaseWorker {
      */
     public String[] getTableNames() throws IOException {
         if (cache.size() != 0) {
-            String[] tableNames = cache.keySet().toArray(new String[cache.keySet().size()]);
-            System.out.println("getTableNames() {\n\t" + Arrays.toString(tableNames) + "\n}");
-            return tableNames;
+            return cache.keySet().toArray(new String[cache.keySet().size()]);
         }
         HBaseAdmin hBaseAdmin = new HBaseAdmin(configuration);
         HTableDescriptor[] hTableDescriptors = hBaseAdmin.listTables();
@@ -157,7 +131,6 @@ public class DatabaseWorker {
         ResultScanner scanner = table.getScanner(scan);
         for (Result rr : scanner) {
             listModel.addElement(BytesToStringConverter.toString(rr.getRow(), encoding));
-
             progressBar.setValue(progressBar.getMaximum());
             progressBar.setMaximum(progressBar.getMaximum() + 1);
         }

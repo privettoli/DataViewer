@@ -9,20 +9,23 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.ResourceBundle;
 
 public class ChangeSettings extends JDialog {
     private JPanel contentPane;
     private JButton buttonOK;
     private JButton buttonCancel;
-    private JTextArea textAreaHbaseZookeeperQuorum;
+    private JTextArea settingValue;
+    private JLabel settingNameLabel;
     private DatabaseWorker databaseWorker;
     private MainForm mainForm;
 
-    public ChangeSettings() {
+    public ChangeSettings(String setting) {
         setContentPane(contentPane);
         setModal(true);
         getRootPane().setDefaultButton(buttonOK);
+        settingNameLabel.setText(setting);
         buttonOK.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 try {
@@ -58,13 +61,20 @@ public class ChangeSettings extends JDialog {
 
     public void setDatabaseWorker(DatabaseWorker databaseWorker) {
         this.databaseWorker = databaseWorker;
-        textAreaHbaseZookeeperQuorum.setText(databaseWorker.getHbaseZookeeperQuorum());
+        settingValue.setText(databaseWorker.getHbaseZookeeperQuorum());
     }
 
     private void onOK() throws IOException {
-        if (databaseWorker != null && mainForm != null && textAreaHbaseZookeeperQuorum.getText().length() > 0) {
-            databaseWorker.setHbaseZookeeperQuorum(textAreaHbaseZookeeperQuorum.getText());
+        if (databaseWorker != null && mainForm != null && settingValue.getText().length() > 0) {
+            databaseWorker.setSetting(settingNameLabel.getText(), settingValue.getText());
             mainForm.loadTables();
+            mainForm.setListModels(new HashMap<String, DefaultListModel<String>>());
+            mainForm.getTablesJList().removeAll();
+            mainForm.getFamiliesJList().removeAll();
+            mainForm.getRowsJList().removeAll();
+            mainForm.getTableData().setRowCount(0);
+            mainForm.getTableData().setColumnCount(0);
+            mainForm.setTablesNames(null);
         }
         dispose();
     }
@@ -112,11 +122,11 @@ public class ChangeSettings extends JDialog {
         final JPanel panel3 = new JPanel();
         panel3.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(panel3, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        textAreaHbaseZookeeperQuorum = new JTextArea();
-        panel3.add(textAreaHbaseZookeeperQuorum, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(150, 50), null, 0, false));
-        final JLabel label1 = new JLabel();
-        label1.setText("hbase.zookeeper.quorum");
-        panel3.add(label1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        settingValue = new JTextArea();
+        panel3.add(settingValue, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(150, 50), null, 0, false));
+        settingNameLabel = new JLabel();
+        settingNameLabel.setText("hbase.zookeeper.quorum");
+        panel3.add(settingNameLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
