@@ -23,10 +23,12 @@
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="true" />
         <module name="DataViewer" />
+        <module name="HBaseExplorer" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
       <module name="DataViewer" target="1.7" />
+      <module name="HBaseExplorer" target="1.7" />
     </bytecodeTargetLevel>
   </component>
 </project>
