@@ -35,7 +35,7 @@ public class DatabaseWorker {
      * Row - строка<br>
      * }
      */
-    private Map<String, Map<String, Map<byte[], Row>>> cache = new ConcurrentHashMap<>();
+    private Map<String, Map<String, Map<String, Row>>> cache = new ConcurrentHashMap<>();
 
     public String getSettingValue(String key) {
         return configuration.get(key);
@@ -67,12 +67,11 @@ public class DatabaseWorker {
     public Row getRow(String tableName, byte[] rowName, byte[] familyName, String encoding) throws IOException {
         String familyNameAsString = Bytes.toString(familyName);
 
-        Map<String, Map<byte[], Row>> table = cache.get(tableName);
+        Map<String, Map<String, Row>> table = cache.get(tableName);
 
-        if (!table.containsKey(familyNameAsString))
-            table.put(familyNameAsString, new HashMap<byte[], Row>());
+        Row row = table.get(familyNameAsString).get(Bytes.toString(rowName));
+        System.out.println(row);
 
-        Row row = cache.get(tableName).get(familyNameAsString).get(rowName);
         if (row != null && row.getData() != null) {
             return row;
         }
@@ -94,16 +93,18 @@ public class DatabaseWorker {
         scan.setFilter(list);
 
         ResultScanner scanner = hTable.getScanner(scan);
+        System.out.println(scan);
         for (Result result : scanner) {
             byte[] qualifier = result.getFamilyMap(familyName).firstKey();
-            System.out.println(Bytes.toString(qualifier));
             byte[] rowData = result.getColumnLatest(familyName, qualifier).getValue();
             String columnName = Bytes.toString(qualifier);
+            System.out.println(columnName);
             columns.add(columnName);
             data.add(BytesToStringConverter.toString(rowData, encoding));
         }
+        scanner.close();
         row = new Row(columns.toArray(new String[columns.size()]), data.toArray(new String[data.size()]), Bytes.toString(familyName));
-        table.get(familyNameAsString).put(familyName, row);
+        table.get(familyNameAsString).put(Bytes.toString(rowName), row);
         return row;
     }
 
@@ -121,7 +122,7 @@ public class DatabaseWorker {
             names[i] = hTableDescriptors[i].getNameAsString();
         }
         for (String name : names) {
-            cache.put(name, new HashMap<String, Map<byte[], Row>>());
+            cache.put(name, new HashMap<String, Map<String, Row>>());
         }
         return names;
     }
@@ -151,7 +152,7 @@ public class DatabaseWorker {
         if (tableName == null)
             return null;
 
-        Map<String, Map<byte[], Row>> table = cache.get(tableName);
+        Map<String, Map<String, Row>> table = cache.get(tableName);
         if (table.keySet().size() > 0) {
             return table.keySet().toArray(new String[table.size()]);
         }
@@ -163,7 +164,7 @@ public class DatabaseWorker {
         cache.put(tableName, table);
         for (HColumnDescriptor hColumnDiscriptor : hColumnDiscriptors) {
             result.add(hColumnDiscriptor);
-            table.put(hColumnDiscriptor.getNameAsString(), new HashMap<byte[], Row>());
+            table.put(hColumnDiscriptor.getNameAsString(), new HashMap<String, Row>());
         }
         return getFamiliesNames(result);
     }
