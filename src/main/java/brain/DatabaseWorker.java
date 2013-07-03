@@ -70,7 +70,6 @@ public class DatabaseWorker {
         Map<String, Map<String, Row>> table = cache.get(tableName);
 
         Row row = table.get(familyNameAsString).get(Bytes.toString(rowName));
-        System.out.println(row);
 
         if (row != null && row.getData() != null) {
             return row;
@@ -93,7 +92,6 @@ public class DatabaseWorker {
         scan.setFilter(list);
 
         ResultScanner scanner = hTable.getScanner(scan);
-        System.out.println(scan);
         for (Result result : scanner) {
             byte[] qualifier = result.getFamilyMap(familyName).firstKey();
             byte[] rowData = result.getColumnLatest(familyName, qualifier).getValue();
