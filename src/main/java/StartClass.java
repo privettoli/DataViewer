@@ -1,7 +1,11 @@
 import ui.MainForm;
 
+import javax.swing.*;
+
 public class StartClass {
     public static void main(String[] args) {
-        new MainForm().start();
+        MainForm ourFrame = new MainForm();
+        ourFrame.start();
+        ourFrame.setLocationRelativeTo(null);
     }
 }

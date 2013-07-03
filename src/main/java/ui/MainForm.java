@@ -9,6 +9,7 @@ import com.intellij.uiDesigner.core.GridLayoutManager;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
 
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
@@ -62,15 +63,14 @@ public class MainForm extends JFrame {
 
     // Entry-point of this window
     public void start() {
-        BasicConfigurator.configure();
-//        try {
-//            Properties log4jProps = new Properties();
-//            log4jProps.load(getClass().getClassLoader().getResourceAsStream("log4j.properties"));
-//            PropertyConfigurator.configure(log4jProps);
-//        } catch (IOException e) {
-//            BasicConfigurator.configure();
-//            logger.error(e);
-//        }
+        try {
+            Properties log4jProps = new Properties();
+            log4jProps.load(getClass().getClassLoader().getResourceAsStream("log4j.properties"));
+            PropertyConfigurator.configure(log4jProps);
+        } catch (IOException e) {
+            BasicConfigurator.configure();
+            logger.error(e);
+        }
         databaseWorker = new DatabaseWorker();
         databaseWorker.loadProperties();
         logger.info("DatabaseWorker created");
@@ -286,6 +286,7 @@ public class MainForm extends JFrame {
                     changeSettingsForm.setDatabaseWorker(databaseWorker);
                     changeSettingsForm.setMainForm(thisFrame);
                     changeSettingsForm.pack();
+                    changeSettingsForm.setLocationRelativeTo(null);
                 }
                 changeSettingsForm.setVisible(true);
             }
