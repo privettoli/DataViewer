@@ -328,7 +328,7 @@ public class MainForm extends JFrame {
                 if (rowsJList.getModel() == null && rowsJList.getModel().getSize() == 0)
                     return;
                 final DefaultListModel<String> rowsModel = listModels.get(choosedTable);
-                if (rowsJList.getModel() == null) {
+                if (rowsModel == null) {
                     return;
                 }
                 if (searchRowTextField.getText().isEmpty())
