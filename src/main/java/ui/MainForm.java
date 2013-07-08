@@ -11,6 +11,7 @@ import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -88,6 +89,12 @@ public class MainForm extends JFrame {
         setContentPane(this.mainPanel);
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setTitle(resourceBundle.getString("appTitle") + " " + resourceBundle.getString("appVersion"));
+
+        try {
+            setIconImage(ImageIO.read(getClass().getClassLoader().getResourceAsStream("appicon.png")));
+        } catch (IOException e) {
+            logger.error(e);
+        }
 
         jTable.setAutoCreateColumnsFromModel(true);
         tableData = new DefaultTableModel();
@@ -321,6 +328,9 @@ public class MainForm extends JFrame {
                 if (rowsJList.getModel() == null && rowsJList.getModel().getSize() == 0)
                     return;
                 final DefaultListModel<String> rowsModel = listModels.get(choosedTable);
+                if (rowsJList.getModel() == null) {
+                    return;
+                }
                 if (searchRowTextField.getText().isEmpty())
                     rowsJList.setModel(rowsModel);
                 rowsJList.setEnabled(false);
@@ -587,8 +597,4 @@ public class MainForm extends JFrame {
     public JComponent $$$getRootComponent$$$() {
         return mainPanel;
     }
-//private void createUIComponents() {
-    //    searchPanel = new JPanel(new GridLayout(1, 1));
-    //}
-
 }
