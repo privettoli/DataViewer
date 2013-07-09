@@ -96,7 +96,6 @@ public class DatabaseWorker {
             byte[] qualifier = result.getFamilyMap(familyName).firstKey();
             byte[] rowData = result.getColumnLatest(familyName, qualifier).getValue();
             String columnName = Bytes.toString(qualifier);
-            System.out.println(columnName);
             columns.add(columnName);
             data.add(BytesToStringConverter.toString(rowData, encoding));
         }
