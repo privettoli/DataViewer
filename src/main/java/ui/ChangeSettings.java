@@ -64,7 +64,7 @@ public class ChangeSettings extends JDialog {
         if (databaseWorker != null && mainForm != null && settingValue.getText().length() > 0) {
             databaseWorker.setSetting(settingNameLabel.getText(), settingValue.getText());
             mainForm.loadTables();
-            mainForm.setListModels(new HashMap<String, DefaultListModel<String>>());
+            mainForm.setUtf8ListModels(new HashMap<String, DefaultListModel<String>>());
             mainForm.getTablesJList().removeAll();
             mainForm.getFamiliesJList().removeAll();
             mainForm.getRowsJList().removeAll();

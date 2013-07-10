@@ -1,12 +1,10 @@
 package ui;
 
 import brain.BytesToStringConverter;
-import brain.Constants;
 import brain.DatabaseWorker;
 import brain.Row;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -22,8 +20,11 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.List;
+
+import static brain.Constants.*;
 
 public class MainForm extends JFrame {
     private final static String OS = System.getProperty("os.name").toLowerCase();
@@ -52,14 +53,18 @@ public class MainForm extends JFrame {
     private JProgressBar progressBarForRows;
     private DatabaseWorker databaseWorker;
     private DefaultTableModel tableData;
-    private Map<String, DefaultListModel<String>> listModels = new HashMap<>();
+    private Map<String, DefaultListModel<String>> utf8ListModels = new HashMap<>();
+    private Map<String, DefaultListModel<String>> ahciiListModels = new HashMap<>();
+    private Map<String, DefaultListModel<String>> cp1251ListModels = new HashMap<>();
+    private Map<String, DefaultListModel<String>> hexListModels = new HashMap<>();
     private JMenu jMenuSettings = new JMenu(resourceBundle.getString("settings"));
     private ChangeSettings changeSettingsForm;
     private String[] tablesNames = null;
     private String choosedTable;
     private byte[] selectedRow;
-    private String selectedEncoding = HConstants.UTF8_ENCODING;
+    private String selectedEncoding = UTF8;
     private byte[] selectedFamily;
+    private int selectedRowIndex;
 
     // Entry-point of this window
     public void start() {
@@ -146,27 +151,34 @@ public class MainForm extends JFrame {
         tablesJList.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                if (e.getSource() != tablesJList || ((JList<String>) e.getSource()).getSelectedValue() == null)
+                if (e.getSource() != tablesJList || tablesJList.getSelectedValue() == null)
                     return;
-                choosedTable = ((JList<String>) e.getSource()).getSelectedValue();
+                choosedTable = tablesJList.getSelectedValue();
 
                 tablesJList.setEnabled(false);
                 try {
                     final String[] familiesNames = databaseWorker.getFamilies(choosedTable);
                     familiesJList.setListData(familiesNames);
 
-                    DefaultListModel<String> choosedListModel = listModels.get(choosedTable);
+                    DefaultListModel<String> choosedListModel = getWantedModel();
                     if (choosedListModel != null) {
                         rowsJList.setModel(choosedListModel);
                     } else {
-                        final DefaultListModel<String> finalChoosedListModel = new DefaultListModel<>();
-                        listModels.put(choosedTable, finalChoosedListModel);
-                        rowsJList.setModel(finalChoosedListModel);
+                        final DefaultListModel<String> utf8ListModel = new DefaultListModel<>();
+                        final DefaultListModel<String> hexListModel = new DefaultListModel<>();
+                        final DefaultListModel<String> ahciiListModel = new DefaultListModel<>();
+                        final DefaultListModel<String> cp1251ListModel = new DefaultListModel<>();
+
+                        utf8ListModels.put(choosedTable, utf8ListModel);
+                        ahciiListModels.put(choosedTable, ahciiListModel);
+                        hexListModels.put(choosedTable, hexListModel);
+                        cp1251ListModels.put(choosedTable, cp1251ListModel);
+                        rowsJList.setModel(getWantedModel());
                         new Thread(new Runnable() {
                             @Override
                             public void run() {
                                 try {
-                                    databaseWorker.fillRowsToListModel(choosedTable, finalChoosedListModel, selectedEncoding, progressBar);
+                                    databaseWorker.fillRowsToListModel(choosedTable, progressBar, hexListModel, ahciiListModel, cp1251ListModel, utf8ListModel);
                                 } catch (IOException e1) {
                                     logger.error(e1);
                                 }
@@ -188,7 +200,12 @@ public class MainForm extends JFrame {
                     return;
                 rowsJList.setEnabled(false);
                 try {
-                    selectedRow = selectedEncoding.equals(Constants.HEX) ? BytesToStringConverter.toBytes(((JList<String>) e.getSource()).getSelectedValue()) : rowsJList.getSelectedValue().getBytes(selectedEncoding);
+                    String selectedRowStr = rowsJList.getSelectedValue();
+                    selectedRowIndex = rowsJList.getSelectedIndex();
+                    if (searchRowTextField.getText().length() < 1)
+                        selectedRow = BytesToStringConverter.toBytes(hexListModels.get(choosedTable).get(selectedRowIndex), HEX);
+                    else
+                        selectedRow = BytesToStringConverter.toBytes(selectedRowStr, selectedEncoding);
                 } catch (Exception e1) {
                     logger.error(e1);
                 }
@@ -229,8 +246,8 @@ public class MainForm extends JFrame {
         goButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                loadDataToJTable();
                 choosePanel.setVisible(false);
+                loadDataToJTable();
                 viewPanel.setVisible(true);
             }
         });
@@ -238,43 +255,19 @@ public class MainForm extends JFrame {
         ActionListener encodingWasChangedListener = new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                final String lastEncoding = selectedEncoding;
                 if (e.getSource() == utf8RadioButton)
-                    selectedEncoding = Constants.UTF8;
+                    selectedEncoding = UTF8;
                 else if (e.getSource() == hexRadioButton)
-                    selectedEncoding = Constants.HEX;
+                    selectedEncoding = HEX;
                 else if (e.getSource() == windows1251RadioButton)
-                    selectedEncoding = Constants.CP1251;
+                    selectedEncoding = CP1251;
                 else if (e.getSource() == asciiRadioButton)
-                    selectedEncoding = Constants.AHCII;
-                for (String tableName : listModels.keySet()) {
-                    final DefaultListModel<String> rows = listModels.get(tableName);
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            progressBarForRows.setVisible(true);
-                            progressBarForRows.setIndeterminate(true);
-                            progressBarForRows.setMaximum(rows.getSize());
-                            for (int i = 0; i < rows.getSize(); i++) {
-                                try {
-                                    byte[] row = lastEncoding.equals(Constants.HEX) ? BytesToStringConverter.toBytes(rows.getElementAt(i)) : rows.getElementAt(i).getBytes(lastEncoding);
-                                    rows.set(i, BytesToStringConverter.toString(row, selectedEncoding));
-                                } catch (Exception e1) {
-                                    logger.error(e1);
-                                }
-                                progressBarForRows.setValue(i);
-                            }
-                            progressBarForRows.setIndeterminate(false);
-                            progressBarForRows.setVisible(false);
-                        }
-                    }).start();
-                }
+                    selectedEncoding = AHCII;
+
+                rowsJList.setModel(getWantedModel());
+
                 if (viewPanel.isVisible())
                     loadDataToJTable();
-                try {
-                    loadTables();
-                } catch (IOException ignored) {
-                }
 
                 tablesJList.setSelectedValue(choosedTable, true);
             }
@@ -327,7 +320,7 @@ public class MainForm extends JFrame {
             public void keyTyped(KeyEvent e) {
                 if (rowsJList.getModel() == null && rowsJList.getModel().getSize() == 0)
                     return;
-                final DefaultListModel<String> rowsModel = listModels.get(choosedTable);
+                final DefaultListModel<String> rowsModel = getWantedModel();
                 if (rowsModel == null) {
                     return;
                 }
@@ -373,29 +366,49 @@ public class MainForm extends JFrame {
     }
 
     private void loadDataToJTable() {
-        Row choosedRowData;
-        try {
-            choosedRowData = databaseWorker.getRow(tablesJList.getSelectedValue(), selectedRow, selectedFamily, selectedEncoding);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return;
-        }
+        final byte[] selectedRowName = selectedRow;
+        final String selectedTableName = choosedTable;
+        final byte[] selectedFamilyName = selectedFamily;
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                progressBar.setVisible(true);
+                progressBar.setIndeterminate(true);
+                tableData.setRowCount(0);
+                tableData.setColumnCount(0);
+                Row choosedRowData;
+                try {
+                    choosedRowData = databaseWorker.getRow(selectedTableName, selectedRowName, selectedFamilyName);
+                } catch (IOException | InterruptedException e) {
+                    logger.error(e);
+                    return;
+                }
 
-        tableData.setRowCount(0);
-        tableData.setColumnCount(0);
+                if (choosedRowData == null || choosedRowData.getData().length < 1) {
+                    logger.info("No data in this row");
+                    progressBar.setIndeterminate(false);
+                    progressBar.setVisible(false);
+                    return;
+                }
 
-        if (choosedRowData.getData().length == 0) {
-            logger.info("No data in this row");
-            return;
-        }
-
-        String[] tmpColumnsLink = choosedRowData.getColumns();
-
-        for (String aTmpColumnsLink : tmpColumnsLink) {
-            if (aTmpColumnsLink != null)
-                tableData.addColumn(aTmpColumnsLink);
-        }
-        tableData.addRow(choosedRowData.getData());
+                String[] tmpColumnsLink = choosedRowData.getColumns();
+                for (String aTmpColumnsLink : tmpColumnsLink) {
+                    tableData.addColumn(aTmpColumnsLink);
+                }
+                String[] rowValues = new String[choosedRowData.getData().length];
+                try {
+                    int i = 0;
+                    for (byte[] bytes : choosedRowData.getData()) {
+                        rowValues[i++] = BytesToStringConverter.toString(bytes, selectedEncoding);
+                    }
+                    tableData.addRow(rowValues);
+                } catch (UnsupportedEncodingException e) {
+                    logger.error(e);
+                }
+                progressBar.setIndeterminate(false);
+                progressBar.setVisible(false);
+            }
+        });
     }
 
     public void loadTables() throws IOException {
@@ -445,8 +458,8 @@ public class MainForm extends JFrame {
         }).start();
     }
 
-    public void setListModels(Map<String, DefaultListModel<String>> listModels) {
-        this.listModels = listModels;
+    public void setUtf8ListModels(Map<String, DefaultListModel<String>> utf8ListModels) {
+        this.utf8ListModels = utf8ListModels;
     }
 
     public JList<String> getTablesJList() {
@@ -467,6 +480,21 @@ public class MainForm extends JFrame {
 
     public void setTablesNames(String[] tablesNames) {
         this.tablesNames = tablesNames;
+    }
+
+    public DefaultListModel<String> getWantedModel() {
+        switch (selectedEncoding) {
+            case HEX:
+                return hexListModels.get(choosedTable);
+            case UTF8:
+                return utf8ListModels.get(choosedTable);
+            case AHCII:
+                return ahciiListModels.get(choosedTable);
+            case CP1251:
+                return cp1251ListModels.get(choosedTable);
+            default:
+                return null;
+        }
     }
 
     {

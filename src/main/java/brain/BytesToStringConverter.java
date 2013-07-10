@@ -1,6 +1,7 @@
 package brain;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 
 /**
  * Краткое описание класса:
@@ -29,15 +30,24 @@ public class BytesToStringConverter {
         return new String(hexChars);
     }
 
-    public static byte[] toBytes(String hexStr) throws Exception {
-        if (hexStr == null) {
-            throw new Exception("HexStr is null");
+    public static byte[] toBytes(String string, String selectedEncoding) throws Exception {
+        if (string == null) {
+            throw new Exception("string is null");
         }
-        int len = hexStr.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hexStr.charAt(i), 16) << 4)
-                    + Character.digit(hexStr.charAt(i + 1), 16));
+        byte[] data;
+        switch (selectedEncoding) {
+            case Constants.HEX:
+                int len = string.length();
+                data = new byte[len / 2];
+                for (int i = 0; i < len; i += 2) {
+                    data[i / 2] = (byte) ((Character.digit(string.charAt(i), 16) << 4)
+                            + Character.digit(string.charAt(i + 1), 16));
+                }
+                break;
+            default:
+                if (Charset.isSupported(selectedEncoding))
+                    data = string.getBytes(selectedEncoding);
+                else return null;
         }
         return data;
     }

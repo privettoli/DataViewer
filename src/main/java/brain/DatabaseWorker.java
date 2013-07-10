@@ -12,6 +12,7 @@ import org.apache.log4j.Logger;
 
 import javax.swing.*;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.prefs.BackingStoreException;
@@ -28,13 +29,6 @@ public class DatabaseWorker {
     private final Configuration configuration = HBaseConfiguration.create();
     private final Logger logger = Logger.getLogger(DatabaseWorker.class);
     private final Preferences preferences = Preferences.userNodeForPackage(DatabaseWorker.class);
-    /**
-     * String - имя таблицы<br>
-     * Карта {<br>
-     * String - имя семейства колонок<br>
-     * Row - строка<br>
-     * }
-     */
     private Map<String, Map<String, Map<String, Row>>> cache = new ConcurrentHashMap<>();
 
     public String getSettingValue(String key) {
@@ -64,45 +58,24 @@ public class DatabaseWorker {
         preferences.put(key, value);
     }
 
-    public Row getRow(String tableName, byte[] rowName, byte[] familyName, String encoding) throws IOException {
-        String familyNameAsString = Bytes.toString(familyName);
-
-        Map<String, Map<String, Row>> table = cache.get(tableName);
-
-        Row row = table.get(familyNameAsString).get(Bytes.toString(rowName));
-
-        if (row != null && row.getData() != null) {
-            return row;
+    public synchronized Row getRow(String tableName, byte[] rowName, byte[] familyName) throws IOException, InterruptedException {
+        while (cache == null || tableName == null) {
+            Thread.sleep(100L);
         }
-
-        List<String> columns = new LinkedList<>();
-        List<String> data = new LinkedList<>();
-
         HTable hTable = new HTable(configuration, tableName);
-        Scan scan = new Scan();
+        List<String> qualifiersNames = new LinkedList<>();
+        List<byte[]> data = new LinkedList<>();
 
-        FilterList list = new FilterList(FilterList.Operator.MUST_PASS_ALL);
-
-        FamilyFilter oneFamilyFilter = new FamilyFilter(CompareFilter.CompareOp.EQUAL, new BinaryComparator(familyName));
-        RowFilter oneRowFilter = new RowFilter(CompareFilter.CompareOp.EQUAL, new BinaryComparator(rowName));
-
-        list.addFilter(oneFamilyFilter);
-        list.addFilter(oneRowFilter);
-
-        scan.setFilter(list);
-
-        ResultScanner scanner = hTable.getScanner(scan);
-        for (Result result : scanner) {
-            byte[] qualifier = result.getFamilyMap(familyName).firstKey();
-            byte[] rowData = result.getColumnLatest(familyName, qualifier).getValue();
-            String columnName = Bytes.toString(qualifier);
-            columns.add(columnName);
-            data.add(BytesToStringConverter.toString(rowData, encoding));
+        Get get = new Get(rowName);
+        get.addFamily(familyName);
+        Result result = hTable.get(get);
+        if (result.getFamilyMap(familyName) == null)
+            return null;
+        for (byte[] bytes : result.getFamilyMap(familyName).keySet()) {
+            qualifiersNames.add(Bytes.toString(bytes));
+            data.add(result.getValue(familyName, bytes));
         }
-        scanner.close();
-        row = new Row(columns.toArray(new String[columns.size()]), data.toArray(new String[data.size()]), Bytes.toString(familyName));
-        table.get(familyNameAsString).put(Bytes.toString(rowName), row);
-        return row;
+        return new Row(qualifiersNames.toArray(new String[qualifiersNames.size()]), data);
     }
 
     /**
@@ -124,7 +97,7 @@ public class DatabaseWorker {
         return names;
     }
 
-    public void fillRowsToListModel(String tableName, DefaultListModel<String> listModel, String encoding, JProgressBar progressBar) throws IOException {
+    public void fillRowsToListModel(String tableName, final JProgressBar progressBar, final DefaultListModel<String> hexListModel, final DefaultListModel<String> ahciiListModel, final DefaultListModel<String> cp1251ListModel, final DefaultListModel<String> utf8ListModel) throws IOException {
         progressBar.setVisible(true);
         progressBar.setValue(0);
         progressBar.setMaximum(2);
@@ -133,10 +106,22 @@ public class DatabaseWorker {
         scan.setMaxVersions();
         scan.setFilter(new FirstKeyOnlyFilter());
         ResultScanner scanner = table.getScanner(scan);
-        for (Result rr : scanner) {
-            listModel.addElement(BytesToStringConverter.toString(rr.getRow(), encoding));
-            progressBar.setValue(progressBar.getMaximum());
-            progressBar.setMaximum(progressBar.getMaximum() + 1);
+        for (final Result rr : scanner) {
+            SwingUtilities.invokeLater(new Runnable() {
+                public void run() {
+                    try {
+                        hexListModel.addElement(BytesToStringConverter.toString(rr.getRow(), Constants.HEX));
+                        ahciiListModel.addElement(BytesToStringConverter.toString(rr.getRow(), Constants.AHCII));
+                        cp1251ListModel.addElement(BytesToStringConverter.toString(rr.getRow(), Constants.CP1251));
+                        utf8ListModel.addElement(Bytes.toString(rr.getRow()));
+                        int max = progressBar.getMaximum();
+                        progressBar.setMaximum(max + max / 10);
+                        progressBar.setValue(max);
+                    } catch (UnsupportedEncodingException e) {
+                        logger.error(e);
+                    }
+                }
+            });
         }
         progressBar.setVisible(false);
     }
