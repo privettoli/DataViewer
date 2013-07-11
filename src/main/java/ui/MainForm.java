@@ -265,12 +265,16 @@ public class MainForm extends JFrame {
                 else if (e.getSource() == asciiRadioButton)
                     selectedEncoding = AHCII;
 
-                rowsJList.setModel(getWantedModel());
-
-                if (viewPanel.isVisible())
-                    loadDataToJTable();
-
-                tablesJList.setSelectedValue(choosedTable, true);
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        rowsJList.setModel(getWantedModel());
+                        searchRowTextField.getKeyListeners()[0].keyTyped(new KeyEvent(thisFrame, 0, new Date().getTime(), 0, KeyEvent.KEY_PRESSED, KeyEvent.CHAR_UNDEFINED, searchRowTextField.getText().length()));
+                        if (viewPanel.isVisible())
+                            loadDataToJTable();
+                        tablesJList.setSelectedValue(choosedTable, true);
+                    }
+                });
             }
         };
 
