@@ -373,6 +373,12 @@ public class MainForm extends JFrame {
                         try {
                             if (newValue.matches("[0-F]+")) {
                                 databaseWorker.changeTheCell(choosedTable, selectedFamily, selectedRow, Bytes.toBytes(tableData.getColumnName(tcl.getColumn())), BytesToStringConverter.toBytes((String) tcl.getNewValue(), HEX));
+                                SwingUtilities.invokeLater(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        loadDataToJTable();
+                                    }
+                                });
                                 return;
                             }
                             SwingUtilities.invokeLater(new Runnable() {
@@ -382,7 +388,6 @@ public class MainForm extends JFrame {
                                             "Данные должны вводиться в HEX-представлении",
                                             "Ошибка",
                                             JOptionPane.ERROR_MESSAGE);
-                                    loadDataToJTable();
                                 }
                             });
                         } catch (final Exception e1) {
