@@ -5,8 +5,7 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.*;
-import org.apache.hadoop.hbase.filter.*;
-import org.apache.hadoop.hbase.filter.RowFilter;
+import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.log4j.Logger;
 
@@ -163,5 +162,12 @@ public class DatabaseWorker {
             familiesNames[i] = families.get(i).getNameAsString();
         }
         return familiesNames;
+    }
+
+    public void changeTheCell(String choosedTable, byte[] selectedFamily, byte[] selectedRow, byte[] qualifier, byte[] newValue) throws IOException {
+        HTable hTable = new HTable(configuration, choosedTable);
+        Put put = new Put(selectedRow);
+        put.add(selectedFamily, qualifier, newValue);
+        hTable.put(put);
     }
 }

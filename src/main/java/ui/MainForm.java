@@ -5,6 +5,7 @@ import brain.DatabaseWorker;
 import brain.Row;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -339,7 +340,7 @@ public class MainForm extends JFrame {
                             for (int i = 0; i < rowsModel.getSize(); i++) {
                                 progressBarForRows.setValue(i);
                                 String elementAt = rowsModel.getElementAt(i);
-                                if (elementAt.contains(searchRowTextField.getText()))
+                                if (elementAt != null && elementAt.contains(searchRowTextField.getText()))
                                     newRowsNames.add(elementAt);
                             }
                             progressBarForRows.setValue(rowsModel.getSize() + 3);
@@ -363,6 +364,32 @@ public class MainForm extends JFrame {
                 keyTyped(e);
             }
         });
+
+        new TableCellListener(jTable, new
+                AbstractAction() {
+                    public void actionPerformed(ActionEvent e) {
+                        TableCellListener tcl = (TableCellListener) e.getSource();
+                        String newValue = (String) tcl.getNewValue();
+                        try {
+                            if (newValue.matches("[0-F]+")) {
+                                databaseWorker.changeTheCell(choosedTable, selectedFamily, selectedRow, Bytes.toBytes(tableData.getColumnName(tcl.getColumn())), BytesToStringConverter.toBytes((String) tcl.getNewValue(), HEX));
+                                return;
+                            }
+                            JOptionPane.showMessageDialog(thisFrame,
+                                    "Данные должны вводиться в HEX-представлении",
+                                    "Ошибка",
+                                    JOptionPane.ERROR_MESSAGE);
+                            loadDataToJTable();
+                        } catch (Exception e1) {
+                            logger.error(e1);
+                            JOptionPane.showMessageDialog(thisFrame,
+                                    e1.getLocalizedMessage(),
+                                    e1.getClass().getSimpleName(),
+                                    JOptionPane.ERROR_MESSAGE);
+                        }
+
+                    }
+                });
     }
 
     private void loadDataToJTable() {
