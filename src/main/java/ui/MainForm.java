@@ -375,17 +375,27 @@ public class MainForm extends JFrame {
                                 databaseWorker.changeTheCell(choosedTable, selectedFamily, selectedRow, Bytes.toBytes(tableData.getColumnName(tcl.getColumn())), BytesToStringConverter.toBytes((String) tcl.getNewValue(), HEX));
                                 return;
                             }
-                            JOptionPane.showMessageDialog(thisFrame,
-                                    "Данные должны вводиться в HEX-представлении",
-                                    "Ошибка",
-                                    JOptionPane.ERROR_MESSAGE);
-                            loadDataToJTable();
-                        } catch (Exception e1) {
+                            SwingUtilities.invokeLater(new Runnable() {
+                                @Override
+                                public void run() {
+                                    JOptionPane.showMessageDialog(thisFrame,
+                                            "Данные должны вводиться в HEX-представлении",
+                                            "Ошибка",
+                                            JOptionPane.ERROR_MESSAGE);
+                                    loadDataToJTable();
+                                }
+                            });
+                        } catch (final Exception e1) {
                             logger.error(e1);
-                            JOptionPane.showMessageDialog(thisFrame,
-                                    e1.getLocalizedMessage(),
-                                    e1.getClass().getSimpleName(),
-                                    JOptionPane.ERROR_MESSAGE);
+                            SwingUtilities.invokeLater(new Runnable() {
+                                @Override
+                                public void run() {
+                                    JOptionPane.showMessageDialog(thisFrame,
+                                            e1.getLocalizedMessage(),
+                                            e1.getClass().getSimpleName(),
+                                            JOptionPane.ERROR_MESSAGE);
+                                }
+                            });
                         }
 
                     }
